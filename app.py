@@ -10,7 +10,7 @@ import os
 # ========== CONFIG ========== #
 IMAGE_SIZE = (224, 224)
 class_names = ['Healthy', 'Tea leaf blight', 'Tea red leaf spot', 'Tea red scab']
-model_path = "models/percobaan_baru_1.tflite"
+model_path = "percobaan_baru_1.tflite"
 
 # ========== INIT FASTAPI ========== #
 app = FastAPI()
