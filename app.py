@@ -1,67 +1,51 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
+from flask import Flask, request, jsonify
 import numpy as np
 import tensorflow as tf
 from PIL import Image
 import io
 
-app = FastAPI()
+app = Flask(__name__)
 
-print("[INFO] Mulai load TFLite model...")
-
-# Load TFLite model
+# Load model TFLite
 interpreter = tf.lite.Interpreter(model_path="percobaan_baru_1.tflite")
 interpreter.allocate_tensors()
-
 input_details = interpreter.get_input_details()
 output_details = interpreter.get_output_details()
 
-print("[INFO] Model TFLite berhasil dimuat.")
-print("Input shape yang diharapkan:", input_details[0]['shape'])
-
+# Class labels
 class_names = ['Healthy', 'Tea leaf blight', 'Tea red leaf spot', 'Tea red scab']
 
-@app.post("/predict")
-async def predict(image: UploadFile = File(...)):
+@app.route('/predict', methods=['POST'])
+def predict():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
+
+    file = request.files['image']
     try:
-        print("[INFO] Menerima permintaan prediksi...")
-
-        # Baca gambar dari request
-        contents = await image.read()
-        print(f"[INFO] Ukuran file yang diterima: {len(contents)} bytes")
-
-        img = Image.open(io.BytesIO(contents)).convert("RGB")
+        img = Image.open(io.BytesIO(file.read())).convert("RGB")
         img = img.resize((224, 224))
         img = np.array(img, dtype=np.float32)
 
-        print("[INFO] Gambar berhasil dibaca dan diubah ke array. Shape:", img.shape)
-
+        # Gunakan preprocessing dari EfficientNet agar sama dengan training
         img = tf.keras.applications.efficientnet.preprocess_input(img)
         img = np.expand_dims(img, axis=0)
 
-        print("[INFO] Melakukan inferensi...")
-
-        # Prediksi
         interpreter.set_tensor(input_details[0]['index'], img)
         interpreter.invoke()
+        output_data = interpreter.get_tensor(output_details[0]['index'])[0]
 
-        output = interpreter.get_tensor(output_details[0]['index'])[0]
-
-        pred_idx = np.argmax(output)
+        pred_idx = int(np.argmax(output_data))
         pred_class = class_names[pred_idx]
-        confidence = round(float(np.max(output)) * 100, 2)
+        confidence = round(float(np.max(output_data)) * 100, 2)
 
-        print("[INFO] Prediksi selesai. Kelas:", pred_class, "| Confidence:", confidence)
-
-        return JSONResponse({
-            "status": "success",
-            "prediction": pred_class,
-            "confidence": f"{confidence}%"
+        return jsonify({
+            'status': 'success',
+            'prediction': pred_class,
+            'confidence': f"{confidence}%"
         })
 
     except Exception as e:
-        print("[ERROR] Terjadi kesalahan:", str(e))
-        return JSONResponse(
-            status_code=500,
-            content={"status": "error", "message": str(e)}
-        )
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
