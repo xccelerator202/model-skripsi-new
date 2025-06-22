@@ -1,6 +1,4 @@
-fastapi
-uvicorn
-pillow
+flask
 numpy
-tensorflow
-python-multipart
+tensorflow==2.19.0
+Pillow
